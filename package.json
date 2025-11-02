@@ -1,0 +1,24 @@
+{
+  "name": "weather-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Weather Analytics Dashboard - Full Stack Application",
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "concurrently \"npm install\" \"cd backend && npm install\" \"cd frontend && npm install --legacy-peer-deps\"",
+    "build": "cd frontend && npm run build",
+    "build:backend": "cd backend && echo Backend is Node.js - no build needed",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run preview",
+    "clean": "concurrently \"cd backend && rm -rf node_modules\" \"cd frontend && rm -rf node_modules\" \"rm -rf node_modules\"",
+    "test": "concurrently \"cd backend && npm test\" \"cd frontend && npm test\""
+  },
+  "keywords": ["weather", "dashboard", "full-stack", "react", "node", "express", "mongodb"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
