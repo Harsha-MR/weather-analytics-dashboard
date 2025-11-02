@@ -6,6 +6,7 @@ import logger from './utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cors from 'cors';
 
 app.use(cors({
   origin: [
