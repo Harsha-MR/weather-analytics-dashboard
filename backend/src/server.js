@@ -1,67 +1,103 @@
-// ✅ Load environment variables FIRST
+// ===============================================
+// Weather Analytics Dashboard - Backend Server
+// ===============================================
+
+// Load environment variables FIRST (before any other imports)
 import 'dotenv/config';
 
-// ✅ Import all required packages
+// Core dependencies
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-// Import configurations
+// Configuration
 import connectDB from './config/database.js';
 import { initializeFirebase } from './config/firebase.js';
 import logger from './utils/logger.js';
 
-// Import routes (only the ones that exist)
+// Routes
 import weatherRoutes from './routes/weatherRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-// import favoriteRoutes from './routes/favoriteRoutes.js';  // ❌ COMMENTED OUT - file doesn't exist
 
-// Import middleware
+// Middleware
 import errorHandler from './middleware/errorHandler.js';
 import rateLimiter from './middleware/rateLimiter.js';
 
-// ... rest of the file stays the same ...
+// ===============================================
+// Environment Variables Validation
+// ===============================================
 
-// API Routes
-app.use('/api/weather', weatherRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-// app.use('/api/favorites', favoriteRoutes);  // ❌ COMMENTED OUT - file doesn't exist
+console.log('\n🔍 Environment Variables Check:');
+console.log('================================');
+console.log(`NODE_ENV: ${process.env.NODE_ENV || '❌ MISSING'}`);
+console.log(`PORT: ${process.env.PORT || '❌ MISSING'}`);
+console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? '✅ LOADED' : '❌ MISSING'}`);
+console.log(`OPENWEATHER_API_KEY: ${process.env.OPENWEATHER_API_KEY ? '✅ LOADED' : '❌ MISSING'}`);
+console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? '✅ LOADED' : '❌ MISSING'}`);
+console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || '❌ MISSING'}`);
+console.log(`FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID ? '✅ LOADED' : '❌ MISSING'}`);
+console.log('================================\n');
+
+// ===============================================
+// Express App Initialization
+// ===============================================
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// Connect to MongoDB
-connectDB();
+// ===============================================
+// Database Connection
+// ===============================================
 
-// Initialize Firebase (optional, won't crash if fails)
+connectDB().catch(err => {
+  console.error('❌ Failed to connect to MongoDB:', err);
+  process.exit(1);
+});
+
+// ===============================================
+// Firebase Initialization (Optional)
+// ===============================================
+
 try {
   initializeFirebase();
-  console.log('✅ Firebase initialized');
+  console.log('✅ Firebase Admin SDK initialized successfully');
 } catch (error) {
   console.warn('⚠️  Firebase initialization skipped:', error.message);
+  logger.warn('Firebase initialization failed', { error: error.message });
 }
 
+// ===============================================
 // Security Middleware
+// ===============================================
+
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Allow Vercel domain
 }));
 
+// ===============================================
 // CORS Configuration
+// ===============================================
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://weather-analytics-dashboard-seven.vercel.app',
+  process.env.FRONTEND_URL,
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://weather-analytics-dashboard-seven.vercel.app'
-    ];
+    // Allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
     
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.log('❌ CORS blocked origin:', origin);
@@ -69,127 +105,265 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600, // Cache preflight request for 10 minutes
 }));
 
+// ===============================================
 // Body Parser Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ===============================================
 
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ===============================================
 // Logging Middleware
-if (process.env.NODE_ENV === 'production') {
-  app.use(morgan('combined', { 
-    stream: { write: message => logger.info(message.trim()) } 
-  }));
-} else {
+// ===============================================
+
+if (isDevelopment) {
   app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined', {
+    stream: {
+      write: (message) => logger.info(message.trim())
+    }
+  }));
 }
 
+// ===============================================
 // Rate Limiting
+// ===============================================
+
 app.use('/api/', rateLimiter);
 
+// ===============================================
 // Health Check Endpoint
+// ===============================================
+
 app.get('/health', (req, res) => {
-  res.json({
+  const healthCheck = {
     success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-  });
+    service: 'Weather Analytics Dashboard API',
+    version: '1.0.0',
+  };
+  
+  res.status(200).json(healthCheck);
 });
 
+// ===============================================
 // API Routes
+// ===============================================
+
 app.use('/api/weather', weatherRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/favorites', favoriteRoutes);
 
-// API Documentation Route
+// ===============================================
+// API Documentation Endpoint
+// ===============================================
+
 app.get('/api/docs', (req, res) => {
   res.json({
     success: true,
-    message: 'Weather Dashboard API Documentation',
+    message: 'Weather Analytics Dashboard API',
     version: '1.0.0',
     baseUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-    endpoints: {
+    documentation: {
       health: 'GET /health',
+      apiDocs: 'GET /api/docs',
+    },
+    endpoints: {
       weather: {
-        current: 'GET /api/weather/current/:city',
-        forecast: 'GET /api/weather/forecast/:city',
-        hourly: 'GET /api/weather/hourly/:city',
-        search: 'GET /api/weather/search?q=query',
-        coords: 'GET /api/weather/coords?lat=&lon=',
+        description: 'Weather data endpoints',
+        routes: {
+          getCurrentWeather: {
+            method: 'GET',
+            path: '/api/weather/current/:city',
+            description: 'Get current weather for a city',
+            example: '/api/weather/current/London',
+          },
+          getForecast: {
+            method: 'GET',
+            path: '/api/weather/forecast/:city',
+            description: 'Get 7-day weather forecast',
+            example: '/api/weather/forecast/London',
+          },
+          getHourlyForecast: {
+            method: 'GET',
+            path: '/api/weather/hourly/:city',
+            description: 'Get hourly weather forecast',
+            example: '/api/weather/hourly/London',
+          },
+          searchCities: {
+            method: 'GET',
+            path: '/api/weather/search',
+            description: 'Search cities by name',
+            example: '/api/weather/search?q=London',
+          },
+          getWeatherByCoords: {
+            method: 'GET',
+            path: '/api/weather/coords',
+            description: 'Get weather by coordinates',
+            example: '/api/weather/coords?lat=51.5074&lon=-0.1278',
+          },
+        },
       },
       auth: {
-        google: 'POST /api/auth/google',
-        refresh: 'POST /api/auth/refresh',
-        logout: 'POST /api/auth/logout',
-        me: 'GET /api/auth/me',
+        description: 'Authentication endpoints',
+        routes: {
+          googleLogin: {
+            method: 'POST',
+            path: '/api/auth/google',
+            description: 'Authenticate with Google',
+            body: { idToken: 'string' },
+          },
+          refreshToken: {
+            method: 'POST',
+            path: '/api/auth/refresh',
+            description: 'Refresh access token',
+            body: { refreshToken: 'string' },
+          },
+          logout: {
+            method: 'POST',
+            path: '/api/auth/logout',
+            description: 'Logout user',
+          },
+          getCurrentUser: {
+            method: 'GET',
+            path: '/api/auth/me',
+            description: 'Get current authenticated user',
+            headers: { Authorization: 'Bearer <token>' },
+          },
+        },
       },
       users: {
-        profile: 'GET /api/users/profile',
-        updateProfile: 'PUT /api/users/profile',
-        preferences: 'PUT /api/users/preferences',
-      },
-      favorites: {
-        list: 'GET /api/favorites',
-        add: 'POST /api/favorites',
-        remove: 'DELETE /api/favorites/:id',
-        reorder: 'PUT /api/favorites/order',
+        description: 'User management endpoints',
+        routes: {
+          getProfile: {
+            method: 'GET',
+            path: '/api/users/profile',
+            description: 'Get user profile',
+            auth: 'required',
+          },
+          updateProfile: {
+            method: 'PUT',
+            path: '/api/users/profile',
+            description: 'Update user profile',
+            auth: 'required',
+          },
+          updatePreferences: {
+            method: 'PUT',
+            path: '/api/users/preferences',
+            description: 'Update user preferences',
+            auth: 'required',
+          },
+        },
       },
     },
   });
 });
 
+// ===============================================
+// Root Endpoint
+// ===============================================
+
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Weather Analytics Dashboard API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      documentation: '/api/docs',
+      weather: '/api/weather',
+      auth: '/api/auth',
+      users: '/api/users',
+    },
+  });
+});
+
+// ===============================================
 // 404 Handler
+// ===============================================
+
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'Route not found',
     path: req.originalUrl,
+    method: req.method,
+    availableEndpoints: {
+      health: '/health',
+      documentation: '/api/docs',
+      weather: '/api/weather',
+      auth: '/api/auth',
+      users: '/api/users',
+    },
   });
 });
 
-// Error Handling Middleware (must be last)
+// ===============================================
+// Error Handling Middleware (Must be last)
+// ===============================================
+
 app.use(errorHandler);
 
-// Start Server
+// ===============================================
+// Server Startup
+// ===============================================
+
 app.listen(PORT, '0.0.0.0', () => {
+  console.log('\n==================================================');
+  console.log('🚀 Weather Analytics Dashboard API');
   console.log('==================================================');
-  console.log('🚀 Server running in ' + (process.env.NODE_ENV || 'development') + ' mode');
-  console.log(`📡 Server URL: http://localhost:${PORT}`);
-  console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
-  console.log(`📚 API Docs: http://localhost:${PORT}/api/docs`);
-  console.log(`💚 Health Check: http://localhost:${PORT}/health`);
-  console.log('==================================================');
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Server URL: http://localhost:${PORT}`);
+  console.log(`API Base: http://localhost:${PORT}/api`);
+  console.log(`Health Check: http://localhost:${PORT}/health`);
+  console.log(`API Docs: http://localhost:${PORT}/api/docs`);
+  console.log('==================================================\n');
   
-  logger.info(`Server started on port ${PORT}`);
+  logger.info(`Server started successfully on port ${PORT}`);
 });
 
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  logger.info('Server shutting down gracefully');
+// ===============================================
+// Graceful Shutdown Handlers
+// ===============================================
+
+const gracefulShutdown = (signal) => {
+  console.log(`\n${signal} signal received: closing HTTP server gracefully`);
+  logger.info(`${signal} received, shutting down gracefully`);
+  
   process.exit(0);
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
-  logger.info('Server shutting down gracefully');
-  process.exit(0);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Handle uncaught exceptions
+// ===============================================
+// Unhandled Error Handlers
+// ===============================================
+
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('❌ Uncaught Exception:', error);
   logger.error('Uncaught Exception:', error);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   logger.error('Unhandled Rejection:', { reason, promise });
   process.exit(1);
 });
+
+// ===============================================
+// Export for testing
+// ===============================================
+
+export default app;
