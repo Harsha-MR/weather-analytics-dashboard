@@ -17,11 +17,7 @@ import weatherRoutes from './routes/weatherRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 
-// Middleware
-import errorHandler from './middleware/errorHandler.js';
-// import rateLimiter from './middleware/rateLimiter.js';  // COMMENTED OUT - causing issues
-
-// Environment Variables Validation
+// Environment Variables Check
 console.log('\n🔍 Environment Variables Check:');
 console.log('================================');
 console.log(`NODE_ENV: ${process.env.NODE_ENV || '❌ MISSING'}`);
@@ -29,18 +25,15 @@ console.log(`PORT: ${process.env.PORT || '❌ MISSING'}`);
 console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? '✅ LOADED' : '❌ MISSING'}`);
 console.log(`OPENWEATHER_API_KEY: ${process.env.OPENWEATHER_API_KEY ? '✅ LOADED' : '❌ MISSING'}`);
 console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? '✅ LOADED' : '❌ MISSING'}`);
-console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || '❌ MISSING'}`);
 console.log('================================\n');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Database Connection
-connectDB().catch(err => {
-  console.error('❌ MongoDB connection failed:', err);
-});
+connectDB();
 
-// Firebase Initialization (Optional)
+// Firebase Initialization
 try {
   initializeFirebase();
   console.log('✅ Firebase initialized');
@@ -72,9 +65,6 @@ app.use(express.urlencoded({ extended: true }));
 // Logging
 app.use(morgan('dev'));
 
-// Rate Limiting - COMMENTED OUT
-// app.use('/api/', rateLimiter);
-
 // Health Check
 app.get('/health', (req, res) => {
   res.json({
@@ -102,18 +92,13 @@ app.get('/api/docs', (req, res) => {
       weather: {
         current: 'GET /api/weather/current/:city',
         forecast: 'GET /api/weather/forecast/:city',
-        hourly: 'GET /api/weather/hourly/:city',
-        search: 'GET /api/weather/search?q=query',
-        coords: 'GET /api/weather/coords?lat=&lon=',
       },
       auth: {
         google: 'POST /api/auth/google',
         me: 'GET /api/auth/me',
-        logout: 'POST /api/auth/logout',
       },
       users: {
         profile: 'GET /api/users/profile',
-        updateProfile: 'PUT /api/users/profile',
       },
     },
   });
@@ -139,16 +124,28 @@ app.use('*', (req, res) => {
   });
 });
 
-// Error Handler
-app.use(errorHandler);
+// Custom Error Handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    success: false,
+    message: message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
 
 // Start Server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log('\n==================================================');
   console.log('🚀 Server Started Successfully');
   console.log('==================================================');
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Port: ${PORT}`);
+  console.log(`URL: http://localhost:${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   console.log(`API Docs: http://localhost:${PORT}/api/docs`);
   console.log('==================================================\n');
@@ -156,12 +153,12 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  console.log('SIGTERM received, shutting down');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  console.log('SIGINT received, shutting down');
   process.exit(0);
 });
 
