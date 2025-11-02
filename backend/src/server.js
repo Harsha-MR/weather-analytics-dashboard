@@ -12,26 +12,23 @@ import connectDB from './config/database.js';
 import { initializeFirebase } from './config/firebase.js';
 import logger from './utils/logger.js';
 
-// Import routes
+// Import routes (only the ones that exist)
 import weatherRoutes from './routes/weatherRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-import favoriteRoutes from './routes/favoriteRoutes.js';
+// import favoriteRoutes from './routes/favoriteRoutes.js';  // ❌ COMMENTED OUT - file doesn't exist
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
 import rateLimiter from './middleware/rateLimiter.js';
 
-// Environment Check
-console.log('\n🔍 Environment Variables Check:');
-console.log('================================');
-console.log(`NODE_ENV: ${process.env.NODE_ENV || '❌ MISSING'}`);
-console.log(`PORT: ${process.env.PORT || '❌ MISSING'}`);
-console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? '✅ LOADED' : '❌ MISSING'}`);
-console.log(`OPENWEATHER_API_KEY: ${process.env.OPENWEATHER_API_KEY ? '✅ LOADED' : '❌ MISSING'}`);
-console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? '✅ LOADED' : '❌ MISSING'}`);
-console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || '❌ MISSING'}`);
-console.log('================================\n');
+// ... rest of the file stays the same ...
+
+// API Routes
+app.use('/api/weather', weatherRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+// app.use('/api/favorites', favoriteRoutes);  // ❌ COMMENTED OUT - file doesn't exist
 
 const app = express();
 const PORT = process.env.PORT || 5000;
