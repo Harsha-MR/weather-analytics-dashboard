@@ -7,6 +7,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://weather-analytics-dashboard-seven.vercel.app/'
+  ],
+  credentials: true,
+}));
+
 // Load environment variables
 dotenv.config();
 
