@@ -153,7 +153,8 @@ NODE_ENV=development
 PORT=5000
 
 MongoDB
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/weather-dashboard
+MONGODB_URI=your mongodb url
+
 
 JWT
 JWT_SECRET=your-super-secret-jwt-key-min-32-characters
